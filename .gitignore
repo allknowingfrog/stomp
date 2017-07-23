@@ -1,2 +1,4 @@
 stomp
 *.o
+*.swp
+*.swo

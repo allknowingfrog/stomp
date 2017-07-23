@@ -1,8 +1,12 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <time.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_image.h>
+
+#include "entity.h"
 
 #define WINDOW_WIDTH (640)
 #define WINDOW_HEIGHT (480)
@@ -16,61 +20,16 @@ enum spriteLabel {
     LEFT, RIGHT, DEFAULT
 };
 
-struct Entity {
-    float x;
-    float y;
-    float vx;
-    float vy;
-    struct SDL_Rect dest;
+struct Player {
+    struct Entity *ent;
+    struct Player *prev;
+    struct Player *next;
+    bool left;
+    bool up;
+    bool right;
+    bool down;
+    enum spriteLabel sprite;
 };
-
-float getLeft(struct Entity *e) {
-    return e->x;
-}
-
-void setLeft(struct Entity *e, float value) {
-    e->x = value;
-}
-
-float getTop(struct Entity *e) {
-    return e->y;
-}
-
-void setTop(struct Entity *e, float value) {
-    e->y = value;
-}
-
-float getRight(struct Entity *e) {
-    return e->x +  e->dest.w;
-}
-
-void setRight(struct Entity *e, float value) {
-    e->x = value -  e->dest.w;
-}
-
-float getBottom(struct Entity *e) {
-    return e->y +  e->dest.h;
-}
-
-void setBottom(struct Entity *e, float value) {
-    e->y = value -  e->dest.h;
-}
-
-float getMidX(struct Entity *e) {
-    return e->x + e->dest.w / 2;
-}
-
-void setMidX(struct Entity *e, float value) {
-    e->x = value - e->dest.w / 2;
-}
-
-float getMidY(struct Entity *e) {
-    return e->y + e->dest.h / 2;
-}
-
-void setMidY(struct Entity *e, float value) {
-    e->y = value - e->dest.h / 2;
-}
 
 void move(struct Entity *e) {
     if(e->vx > SPEED) {
@@ -162,20 +121,46 @@ int main(void) {
         spriteRects[i].h = SPRITE_HEIGHT;
     }
 
-    enum spriteLabel label;
+    struct SDL_Rect dest;
 
-    struct Entity player;
-    player.dest.w = SPRITE_WIDTH;
-    player.dest.h = SPRITE_HEIGHT;
-    setMidX(&player, WINDOW_WIDTH / 2);
-    setMidY(&player, WINDOW_HEIGHT / 2);
-    player.vx = 0;
-    player.vy = 0;
+    struct Player *first;
+    first = (struct Player *) malloc(sizeof(struct Player));
+    first->prev = NULL;
+    first->next = NULL;
+    first->ent = (struct Entity *) malloc(sizeof(struct Entity));
+    first->ent->w = SPRITE_WIDTH;
+    first->ent->h = SPRITE_HEIGHT;
+    setMidX(first->ent, WINDOW_WIDTH / 2);
+    setMidY(first->ent, WINDOW_HEIGHT / 2);
+    first->ent->vx = 0;
+    first->ent->vy = 0;
+    first->left = false;
+    first->up = false;
+    first->right = false;
+    first->down = false;
+    first->sprite = DEFAULT;
 
-    int up = 0;
-    int down = 0;
-    int left = 0;
-    int right = 0;
+    struct Player *last;
+    last = (struct Player *) malloc(sizeof(struct Player));
+    last->prev = NULL;
+    last->next = NULL;
+    last->ent = (struct Entity *) malloc(sizeof(struct Entity));
+    last->ent->w = SPRITE_WIDTH;
+    last->ent->h = SPRITE_HEIGHT;
+    setLeft(last->ent, 0);
+    setTop(last->ent, 0);
+    last->ent->vx = 0;
+    last->ent->vy = 0;
+    last->left = false;
+    last->up = false;
+    last->right = false;
+    last->down = false;
+    last->sprite = DEFAULT;
+
+    first->next = last;
+    last->prev = first;
+
+    struct Player *current = NULL;
 
     int close_requested = 0;
     
@@ -184,82 +169,118 @@ int main(void) {
         start = clock();
 
         SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            switch (event.type)
-            {
+        while(SDL_PollEvent(&event)) {
+            switch(event.type) {
             case SDL_QUIT:
                 close_requested = 1;
                 break;
             case SDL_KEYDOWN:
-                switch (event.key.keysym.scancode)
-                {
-                case SDL_SCANCODE_W:
+                switch (event.key.keysym.scancode) {
+                case SDL_SCANCODE_LEFT:
+                    first->left = true;
+                    break;
                 case SDL_SCANCODE_UP:
-                    up = 1;
+                    first->up = true;
+                    break;
+                case SDL_SCANCODE_RIGHT:
+                    first->right = true;
+                    break;
+                case SDL_SCANCODE_DOWN:
+                    first->down = true;
                     break;
                 case SDL_SCANCODE_A:
-                case SDL_SCANCODE_LEFT:
-                    left = 1;
+                    last->left = true;
                     break;
-                case SDL_SCANCODE_S:
-                case SDL_SCANCODE_DOWN:
-                    down = 1;
+                case SDL_SCANCODE_W:
+                    last->up = true;
                     break;
                 case SDL_SCANCODE_D:
-                case SDL_SCANCODE_RIGHT:
-                    right = 1;
+                    last->right = true;
+                    break;
+                case SDL_SCANCODE_S:
+                    last->down = true;
                     break;
                 }
                 break;
             case SDL_KEYUP:
-                switch (event.key.keysym.scancode)
-                {
-                case SDL_SCANCODE_W:
+                switch (event.key.keysym.scancode) {
+                case SDL_SCANCODE_LEFT:
+                    first->left = false;
+                    break;
                 case SDL_SCANCODE_UP:
-                    up = 0;
+                    first->up = false;
+                    break;
+                case SDL_SCANCODE_RIGHT:
+                    first->right = false;
+                    break;
+                case SDL_SCANCODE_DOWN:
+                    first->down = false;
                     break;
                 case SDL_SCANCODE_A:
-                case SDL_SCANCODE_LEFT:
-                    left = 0;
+                    last->left = false;
                     break;
-                case SDL_SCANCODE_S:
-                case SDL_SCANCODE_DOWN:
-                    down = 0;
+                case SDL_SCANCODE_W:
+                    last->up = false;
                     break;
                 case SDL_SCANCODE_D:
-                case SDL_SCANCODE_RIGHT:
-                    right = 0;
+                    last->right = false;
+                    break;
+                case SDL_SCANCODE_S:
+                    last->down = false;
                     break;
                 }
                 break;
             }
         }
 
-        if(up) {
-            player.vy -= ACC / TICKS_PER_SECOND;
-        } else {
-            player.vy += ACC / TICKS_PER_SECOND;
+        current = first;
+        while(current != NULL) {
+            if(current->up) {
+                current->ent->vy -= ACC / TICKS_PER_SECOND;
+            } else {
+                current->ent->vy += ACC / TICKS_PER_SECOND;
+            }
+
+            current->sprite = DEFAULT;
+            if(current->left) {
+                current->ent->vx -= ACC / TICKS_PER_SECOND;
+                current->sprite = LEFT;
+            } else if(current->right) {
+                current->ent->vx += ACC / TICKS_PER_SECOND;
+                current->sprite = RIGHT;
+            }
+
+            current = current->next;
         }
 
-        label = DEFAULT;
-        if(left) {
-            player.vx -= ACC / TICKS_PER_SECOND;
-            label = LEFT;
-        } else if(right) {
-            player.vx += ACC / TICKS_PER_SECOND;
-            label = RIGHT;
+        current = first;
+        while(current != NULL) {
+            move(current->ent);
+            current = current->next;
         }
 
-        move(&player);
-        edges(&player);
+        if(collides(first->ent, last->ent)) {
+            resolve(first->ent, last->ent);
+        }
 
-        player.dest.y = (int) player.y;
-        player.dest.x = (int) player.x;
+        current = first;
+        while(current != NULL) {
+            edges(current->ent);
+            current = current->next;
+        }
         
         SDL_RenderClear(rend);
 
-        SDL_RenderCopy(rend, tex, &spriteRects[label], &player.dest);
+        current = first;
+        while(current != NULL) {
+            dest.x = (int) current->ent->x;
+            dest.y = (int) current->ent->y;
+            dest.w = current->ent->w;
+            dest.h = current->ent->h;
+            SDL_RenderCopy(rend, tex, &spriteRects[current->sprite], &dest);
+            current = current->next;
+        }
+
         SDL_RenderPresent(rend);
 
         SDL_Delay(1000/TICKS_PER_SECOND - ((clock() - start) / CLOCKS_PER_SEC));
