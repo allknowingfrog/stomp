@@ -59,36 +59,57 @@ bool collides(struct Entity *a, struct Entity *b) {
     return true;
 }
 
-int resolve(struct Entity *a, struct Entity *b) {
-    float dx = a->x - b->x;
-    float dy = a->y - b->y;
+enum edges resolve(struct Entity *a, struct Entity *b, bool block) {
+    float dx = getMidX(a) - getMidX(b);
+    float dy = getMidY(a) - getMidY(b);
     float w = a->w / 2 + b->w / 2;
     float h = a->h / 2 + b->h / 2;
-    float dx_abs = abs(dx);
-    float dy_abs = abs(dy);
-    float move;
+    float x_move = w - abs(dx);
+    float y_move = h - abs(dy);
 
-    if(dx_abs > dy_abs) {
-        move = (w - dx_abs) / 2;
+    if(x_move < y_move) {
+        a->vx = 0;
+        b->vx = 0;
         if(dx > 0) {
-            a->x += move;
-            setRight(b, getLeft(a));
-            return 0;
+            if(block) {
+                b->x -= x_move;
+            } else {
+                a->x += x_move / 2;
+                b->x -= x_move / 2;
+            }
+            //setRight(b, getLeft(a));
+            return EDGE_RIGHT;
         } else {
-            a->x -= move;
-            setLeft(b, getRight(a));
-            return 2;
+            if(block) {
+                b->x += x_move;
+            } else {
+                a->x -= x_move / 2;
+                b->x += x_move / 2;
+            }
+            //setLeft(b, getRight(a));
+            return EDGE_LEFT;
         }
     } else {
-        move = (h - dy_abs) / 2;
+        a->vy = 0;
+        b->vy = 0;
         if(dy > 0) {
-            a->y += move;
-            setBottom(b, getTop(a));
-            return 1;
+            if(block) {
+                b->y -= y_move;
+            } else {
+                a->y += y_move / 2;
+                b->y -= y_move / 2;
+            }
+            //setBottom(b, getTop(a));
+            return EDGE_BOTTOM;
         } else {
-            a->y -= move;
-            setTop(b, getBottom(a));
-            return 3;
+            if(block) {
+                b->y -= y_move;
+            } else {
+                a->y -= y_move / 2;
+                b->y += y_move / 2;
+            }
+            //setTop(b, getBottom(a));
+            return EDGE_TOP;
         }
     }
 }

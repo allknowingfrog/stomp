@@ -10,6 +10,10 @@ struct Entity {
     float vy;
 };
 
+enum edges {
+    EDGE_LEFT, EDGE_TOP, EDGE_RIGHT, EDGE_BOTTOM
+};
+
 float getLeft(struct Entity *e);
 void setLeft(struct Entity *e, float value);
 
@@ -30,6 +34,6 @@ void setMidY(struct Entity *e, float value);
 
 bool collides(struct Entity *a, struct Entity *b);
 
-int resolve(struct Entity *a, struct Entity *b);
+enum edges resolve(struct Entity *a, struct Entity *b, bool block);
 
 #endif

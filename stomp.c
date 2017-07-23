@@ -14,10 +14,12 @@
 #define SPRITE_HEIGHT (24)
 #define TICKS_PER_SECOND (60)
 #define ACC (300)
+#define DCC (2)
 #define SPEED (60)
+#define STICKY (.1)
 
-enum spriteLabel {
-    LEFT, RIGHT, DEFAULT
+enum sprites {
+    SPRITE_LEFT, SPRITE_RIGHT, SPRITE_DEFAULT
 };
 
 struct Player {
@@ -28,7 +30,8 @@ struct Player {
     bool up;
     bool right;
     bool down;
-    enum spriteLabel sprite;
+    enum sprites sprite;
+    bool falling;
 };
 
 void move(struct Entity *e) {
@@ -46,21 +49,28 @@ void move(struct Entity *e) {
     e->y += e->vy / TICKS_PER_SECOND;
 }
 
-void edges(struct Entity *e) {
+enum edges bounds(struct Entity *e) {
+    enum edges edge;
     if(getLeft(e) <= 0) {
         setLeft(e, 0);
         e->vx = 0;
+        edge = EDGE_LEFT;
     } else if(getRight(e) >= WINDOW_WIDTH) {
         setRight(e, WINDOW_WIDTH);
         e->vx = 0;
+        edge = EDGE_RIGHT;
     }
     if(getTop(e) <= 0) {
         setTop(e, 0);
         e->vy = 0;
+        edge = EDGE_TOP;
     } else if(getBottom(e) >= WINDOW_HEIGHT) {
         setBottom(e, WINDOW_HEIGHT);
         e->vy = 0;
+        edge = EDGE_BOTTOM;
     }
+
+    return edge;
 }
 
 int main(void) {
@@ -109,16 +119,28 @@ int main(void) {
         return 1;
     }
 
-    SDL_Rect spriteRects [3];
-    spriteRects[LEFT].x = 3 * SPRITE_WIDTH;
-    spriteRects[LEFT].y = 1 * SPRITE_HEIGHT;
-    spriteRects[RIGHT].x = 4 * SPRITE_WIDTH;
-    spriteRects[RIGHT].y = 0 * SPRITE_HEIGHT;
-    spriteRects[DEFAULT].x = 0 * SPRITE_WIDTH;
-    spriteRects[DEFAULT].y = 0 * SPRITE_HEIGHT;
+    SDL_Rect spriteRects[3];
+    spriteRects[SPRITE_LEFT].x = 3 * SPRITE_WIDTH;
+    spriteRects[SPRITE_LEFT].y = 1 * SPRITE_HEIGHT;
+    spriteRects[SPRITE_RIGHT].x = 4 * SPRITE_WIDTH;
+    spriteRects[SPRITE_RIGHT].y = 0 * SPRITE_HEIGHT;
+    spriteRects[SPRITE_DEFAULT].x = 0 * SPRITE_WIDTH;
+    spriteRects[SPRITE_DEFAULT].y = 0 * SPRITE_HEIGHT;
     for(int i=0; i<3; i++) {
         spriteRects[i].w = SPRITE_WIDTH;
         spriteRects[i].h = SPRITE_HEIGHT;
+    }
+
+    int BLOCK_COUNT = 5;
+    struct Entity *blocks[BLOCK_COUNT];
+    for(int i=0; i<BLOCK_COUNT; i++) {
+        blocks[i] = (struct Entity *) malloc(sizeof(struct Entity));
+        blocks[i]->w = SPRITE_WIDTH;
+        blocks[i]->h = SPRITE_HEIGHT;
+        setLeft(blocks[i], SPRITE_WIDTH * (i + 1));
+        setBottom(blocks[i], WINDOW_HEIGHT);
+        blocks[i]->vx = 0;
+        blocks[i]->vy = 0;
     }
 
     struct SDL_Rect dest;
@@ -130,15 +152,16 @@ int main(void) {
     first->ent = (struct Entity *) malloc(sizeof(struct Entity));
     first->ent->w = SPRITE_WIDTH;
     first->ent->h = SPRITE_HEIGHT;
-    setMidX(first->ent, WINDOW_WIDTH / 2);
-    setMidY(first->ent, WINDOW_HEIGHT / 2);
+    setRight(first->ent, WINDOW_WIDTH);
+    setBottom(first->ent, WINDOW_HEIGHT);
     first->ent->vx = 0;
     first->ent->vy = 0;
     first->left = false;
     first->up = false;
     first->right = false;
     first->down = false;
-    first->sprite = DEFAULT;
+    first->sprite = SPRITE_DEFAULT;
+    first->falling = true;
 
     struct Player *last;
     last = (struct Player *) malloc(sizeof(struct Player));
@@ -147,15 +170,16 @@ int main(void) {
     last->ent = (struct Entity *) malloc(sizeof(struct Entity));
     last->ent->w = SPRITE_WIDTH;
     last->ent->h = SPRITE_HEIGHT;
-    setLeft(last->ent, 0);
-    setTop(last->ent, 0);
+    setMidX(last->ent, WINDOW_WIDTH / 2);
+    setBottom(last->ent, WINDOW_HEIGHT);
     last->ent->vx = 0;
     last->ent->vy = 0;
     last->left = false;
     last->up = false;
     last->right = false;
     last->down = false;
-    last->sprite = DEFAULT;
+    last->sprite = SPRITE_DEFAULT;
+    last->falling = true;
 
     first->next = last;
     last->prev = first;
@@ -241,13 +265,16 @@ int main(void) {
                 current->ent->vy += ACC / TICKS_PER_SECOND;
             }
 
-            current->sprite = DEFAULT;
+            current->sprite = SPRITE_DEFAULT;
             if(current->left) {
                 current->ent->vx -= ACC / TICKS_PER_SECOND;
-                current->sprite = LEFT;
+                current->sprite = SPRITE_LEFT;
             } else if(current->right) {
                 current->ent->vx += ACC / TICKS_PER_SECOND;
-                current->sprite = RIGHT;
+                current->sprite = SPRITE_RIGHT;
+            } else if(!current->falling) {
+                current->ent->vx -= DCC * current->ent->vx / TICKS_PER_SECOND;
+                if(abs(current->ent->vx) < STICKY) current->ent->vx = 0;
             }
 
             current = current->next;
@@ -259,17 +286,42 @@ int main(void) {
             current = current->next;
         }
 
+        current = first;
+        while(current != NULL) {
+            current->falling = true;
+            enum edges edge;
+            for(int i=0; i<BLOCK_COUNT; i++) {
+                if(collides(blocks[i], current->ent)) {
+                    edge = resolve(blocks[i], current->ent, true);
+                    if(edge == EDGE_BOTTOM) {
+                        current->falling = false;
+                    }
+                }
+            }
+            current = current->next;
+        }
+
         if(collides(first->ent, last->ent)) {
-            resolve(first->ent, last->ent);
+            resolve(last->ent, first->ent, false);
         }
 
         current = first;
         while(current != NULL) {
-            edges(current->ent);
+            if(bounds(current->ent) == EDGE_BOTTOM) {
+                current->falling = false;
+            }
             current = current->next;
         }
         
         SDL_RenderClear(rend);
+
+        for(int i=0; i<BLOCK_COUNT; i++) {
+            dest.x = (int) blocks[i]->x;
+            dest.y = (int) blocks[i]->y;
+            dest.w = blocks[i]->w;
+            dest.h = blocks[i]->h;
+            SDL_RenderCopy(rend, tex, &spriteRects[SPRITE_DEFAULT], &dest);
+        }
 
         current = first;
         while(current != NULL) {
