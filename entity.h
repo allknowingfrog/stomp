@@ -11,7 +11,7 @@ struct Entity {
 };
 
 enum edges {
-    EDGE_LEFT, EDGE_TOP, EDGE_RIGHT, EDGE_BOTTOM
+    EDGE_NONE, EDGE_LEFT, EDGE_TOP, EDGE_RIGHT, EDGE_BOTTOM
 };
 
 float getLeft(struct Entity *e);

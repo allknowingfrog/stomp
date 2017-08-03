@@ -18,7 +18,7 @@
 #define MAX_SPEED (100)
 #define MIN_SPEED (.1)
 #define JUMP_TIME (.2)
-#define JUMP_SPEED (300)
+#define JUMP_SPEED (175)
 
 enum sprites {
     SPRITE_FACE, SPRITE_LEFT, SPRITE_RIGHT, SPRITE_CRATE
@@ -43,17 +43,12 @@ void move(struct Entity *e) {
     } else if(e->vx < -MAX_SPEED) {
         e->vx = -MAX_SPEED;
     }
-    if(e->vy > MAX_SPEED) {
-        e->vy = MAX_SPEED;
-    } else if(e->vy < -MAX_SPEED) {
-        e->vy = -MAX_SPEED;
-    }
     e->x += e->vx / TICKS_PER_SECOND;
     e->y += e->vy / TICKS_PER_SECOND;
 }
 
 enum edges bounds(struct Entity *e) {
-    enum edges edge;
+    enum edges edge = EDGE_NONE;
     if(getLeft(e) <= 0) {
         setLeft(e, 0);
         e->vx = 0;
@@ -143,7 +138,7 @@ int main(void) {
         blocks[i]->w = SPRITE_WIDTH;
         blocks[i]->h = SPRITE_HEIGHT;
         setLeft(blocks[i], SPRITE_WIDTH * (i + 2));
-        setBottom(blocks[i], WINDOW_HEIGHT - SPRITE_HEIGHT * i);
+        setBottom(blocks[i], WINDOW_HEIGHT - SPRITE_HEIGHT * (i * 2));
         blocks[i]->vx = 0;
         blocks[i]->vy = 0;
     }
@@ -167,7 +162,7 @@ int main(void) {
     first->down = false;
     first->sprite = SPRITE_FACE;
     first->falling = true;
-    first->jumpTimer = 0;
+    first->jumpTimer = 0.0;
 
     struct Player *last;
     last = (struct Player *) malloc(sizeof(struct Player));
@@ -186,12 +181,14 @@ int main(void) {
     last->down = false;
     last->sprite = SPRITE_FACE;
     last->falling = true;
-    last->jumpTimer = 0;
+    last->jumpTimer = 0.0;
 
     first->next = last;
     last->prev = first;
 
     struct Player *current = NULL;
+
+    enum edges edge = EDGE_NONE;
 
     int close_requested = 0;
     
@@ -269,12 +266,13 @@ int main(void) {
             if(current->up && !current->falling) {
                 current->ent->vy = -JUMP_SPEED;
                 current->jumpTimer = JUMP_TIME;
-                printf("jump\n");
             } else if(current->up && current->jumpTimer > 0) {
-                current->jumpTimer -= TICKS_PER_SECOND / 60;
-                printf("fly\n");
+                current->jumpTimer -= 1.0 / TICKS_PER_SECOND;
             } else {
                 current->jumpTimer = 0;
+                if(!current->up && current->ent->vy < 0) {
+                    current->ent->vy -= DCC * current->ent->vy / TICKS_PER_SECOND;
+                }
                 current->ent->vy += ACC / TICKS_PER_SECOND;
             }
 
@@ -296,17 +294,22 @@ int main(void) {
         current = first;
         while(current != NULL) {
             move(current->ent);
+            current->falling = true;
             current = current->next;
         }
 
         if(collides(first->ent, last->ent)) {
-            resolve(last->ent, first->ent);
+            edge = resolve(last->ent, first->ent);
+            if(edge == EDGE_BOTTOM) {
+                first->falling = false;
+            } else if(edge == EDGE_TOP) {
+                last->falling = false;
+            }
         }
 
         current = first;
         while(current != NULL) {
-            current->falling = true;
-            enum edges edge;
+            edge = EDGE_NONE;
             for(int i=0; i<BLOCK_COUNT; i++) {
                 if(collides(blocks[i], current->ent)) {
                     edge = resolveStatic(blocks[i], current->ent);

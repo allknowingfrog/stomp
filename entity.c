@@ -63,27 +63,31 @@ enum edges resolveStatic(struct Entity *a, struct Entity *b) {
     float dx = getMidX(a) - getMidX(b);
     float dy = getMidY(a) - getMidY(b);
 
+    enum edges edge = EDGE_NONE;
+
     if(abs(dx) > abs(dy)) {
         if(dx > 0) {
             setRight(b, getLeft(a));
             if(b->vx > 0) b->vx = 0;
-            return EDGE_RIGHT;
+            edge = EDGE_RIGHT;
         } else {
             setLeft(b, getRight(a));
             if(b->vx < 0) b->vx = 0;
-            return EDGE_LEFT;
+            edge = EDGE_LEFT;
         }
     } else {
         if(dy > 0) {
             setBottom(b, getTop(a));
             if(b->vy > 0) b->vy = 0;
-            return EDGE_BOTTOM;
+            edge = EDGE_BOTTOM;
         } else {
             setTop(b, getBottom(a));
             if(b->vy < 0) b->vy = 0;
-            return EDGE_TOP;
+            edge = EDGE_TOP;
         }
     }
+
+    return edge;
 }
 
 float getRatio(float a, float b) {
@@ -105,6 +109,8 @@ enum edges resolve(struct Entity *a, struct Entity *b) {
     float ratio;
     float v;
 
+    enum edges edge = EDGE_NONE;
+
     if(x_move < y_move) {
         v = a->vx;
         a->vx = (a->vx / 2) + (b->vx / 2);
@@ -113,11 +119,11 @@ enum edges resolve(struct Entity *a, struct Entity *b) {
         if(dx > 0) {
             a->x += x_move * (1 - ratio);
             b->x -= x_move * ratio;
-            return EDGE_RIGHT;
+            edge = EDGE_RIGHT;
         } else {
             a->x -= x_move * (1 - ratio);
             b->x += x_move * ratio;
-            return EDGE_LEFT;
+            edge = EDGE_LEFT;
         }
     } else {
         v = a->vy;
@@ -127,11 +133,13 @@ enum edges resolve(struct Entity *a, struct Entity *b) {
         if(dy > 0) {
             a->y += y_move * (1 - ratio);
             b->y -= y_move * ratio;
-            return EDGE_BOTTOM;
+            edge = EDGE_BOTTOM;
         } else {
             a->y -= y_move * (1 - ratio);
             b->y += y_move * ratio;
-            return EDGE_TOP;
+            edge = EDGE_TOP;
         }
     }
+
+    return edge;
 }
