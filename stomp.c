@@ -10,16 +10,18 @@
 
 #define WINDOW_WIDTH (640)
 #define WINDOW_HEIGHT (480)
-#define SPRITE_WIDTH (18)
-#define SPRITE_HEIGHT (24)
+#define SPRITE_WIDTH (40)
+#define SPRITE_HEIGHT (40)
 #define TICKS_PER_SECOND (60)
 #define ACC (300)
 #define DCC (2)
-#define SPEED (60)
-#define STICKY (.1)
+#define MAX_SPEED (100)
+#define MIN_SPEED (.1)
+#define JUMP_TIME (.2)
+#define JUMP_SPEED (300)
 
 enum sprites {
-    SPRITE_LEFT, SPRITE_RIGHT, SPRITE_DEFAULT
+    SPRITE_FACE, SPRITE_LEFT, SPRITE_RIGHT, SPRITE_CRATE
 };
 
 struct Player {
@@ -32,18 +34,19 @@ struct Player {
     bool down;
     enum sprites sprite;
     bool falling;
+    float jumpTimer;
 };
 
 void move(struct Entity *e) {
-    if(e->vx > SPEED) {
-        e->vx = SPEED;
-    } else if(e->vx < -SPEED) {
-        e->vx = -SPEED;
+    if(e->vx > MAX_SPEED) {
+        e->vx = MAX_SPEED;
+    } else if(e->vx < -MAX_SPEED) {
+        e->vx = -MAX_SPEED;
     }
-    if(e->vy > SPEED) {
-        e->vy = SPEED;
-    } else if(e->vy < -SPEED) {
-        e->vy = -SPEED;
+    if(e->vy > MAX_SPEED) {
+        e->vy = MAX_SPEED;
+    } else if(e->vy < -MAX_SPEED) {
+        e->vy = -MAX_SPEED;
     }
     e->x += e->vx / TICKS_PER_SECOND;
     e->y += e->vy / TICKS_PER_SECOND;
@@ -119,14 +122,16 @@ int main(void) {
         return 1;
     }
 
-    SDL_Rect spriteRects[3];
-    spriteRects[SPRITE_LEFT].x = 3 * SPRITE_WIDTH;
-    spriteRects[SPRITE_LEFT].y = 1 * SPRITE_HEIGHT;
-    spriteRects[SPRITE_RIGHT].x = 4 * SPRITE_WIDTH;
+    SDL_Rect spriteRects[4];
+    spriteRects[SPRITE_FACE].x = 0 * SPRITE_WIDTH;
+    spriteRects[SPRITE_FACE].y = 0 * SPRITE_HEIGHT;
+    spriteRects[SPRITE_LEFT].x = 1 * SPRITE_WIDTH;
+    spriteRects[SPRITE_LEFT].y = 0 * SPRITE_HEIGHT;
+    spriteRects[SPRITE_RIGHT].x = 2 * SPRITE_WIDTH;
     spriteRects[SPRITE_RIGHT].y = 0 * SPRITE_HEIGHT;
-    spriteRects[SPRITE_DEFAULT].x = 0 * SPRITE_WIDTH;
-    spriteRects[SPRITE_DEFAULT].y = 0 * SPRITE_HEIGHT;
-    for(int i=0; i<3; i++) {
+    spriteRects[SPRITE_CRATE].x = 3 * SPRITE_WIDTH;
+    spriteRects[SPRITE_CRATE].y = 0 * SPRITE_HEIGHT;
+    for(int i=0; i<4; i++) {
         spriteRects[i].w = SPRITE_WIDTH;
         spriteRects[i].h = SPRITE_HEIGHT;
     }
@@ -137,8 +142,8 @@ int main(void) {
         blocks[i] = (struct Entity *) malloc(sizeof(struct Entity));
         blocks[i]->w = SPRITE_WIDTH;
         blocks[i]->h = SPRITE_HEIGHT;
-        setLeft(blocks[i], SPRITE_WIDTH * (i + 1));
-        setBottom(blocks[i], WINDOW_HEIGHT);
+        setLeft(blocks[i], SPRITE_WIDTH * (i + 2));
+        setBottom(blocks[i], WINDOW_HEIGHT - SPRITE_HEIGHT * i);
         blocks[i]->vx = 0;
         blocks[i]->vy = 0;
     }
@@ -160,8 +165,9 @@ int main(void) {
     first->up = false;
     first->right = false;
     first->down = false;
-    first->sprite = SPRITE_DEFAULT;
+    first->sprite = SPRITE_FACE;
     first->falling = true;
+    first->jumpTimer = 0;
 
     struct Player *last;
     last = (struct Player *) malloc(sizeof(struct Player));
@@ -178,8 +184,9 @@ int main(void) {
     last->up = false;
     last->right = false;
     last->down = false;
-    last->sprite = SPRITE_DEFAULT;
+    last->sprite = SPRITE_FACE;
     last->falling = true;
+    last->jumpTimer = 0;
 
     first->next = last;
     last->prev = first;
@@ -189,7 +196,7 @@ int main(void) {
     int close_requested = 0;
     
     clock_t start;
-    while (!close_requested) {
+    while(!close_requested) {
         start = clock();
 
         SDL_Event event;
@@ -259,13 +266,19 @@ int main(void) {
 
         current = first;
         while(current != NULL) {
-            if(current->up) {
-                current->ent->vy -= ACC / TICKS_PER_SECOND;
+            if(current->up && !current->falling) {
+                current->ent->vy = -JUMP_SPEED;
+                current->jumpTimer = JUMP_TIME;
+                printf("jump\n");
+            } else if(current->up && current->jumpTimer > 0) {
+                current->jumpTimer -= TICKS_PER_SECOND / 60;
+                printf("fly\n");
             } else {
+                current->jumpTimer = 0;
                 current->ent->vy += ACC / TICKS_PER_SECOND;
             }
 
-            current->sprite = SPRITE_DEFAULT;
+            current->sprite = SPRITE_FACE;
             if(current->left) {
                 current->ent->vx -= ACC / TICKS_PER_SECOND;
                 current->sprite = SPRITE_LEFT;
@@ -274,7 +287,7 @@ int main(void) {
                 current->sprite = SPRITE_RIGHT;
             } else if(!current->falling) {
                 current->ent->vx -= DCC * current->ent->vx / TICKS_PER_SECOND;
-                if(abs(current->ent->vx) < STICKY) current->ent->vx = 0;
+                if(abs(current->ent->vx) < MIN_SPEED) current->ent->vx = 0;
             }
 
             current = current->next;
@@ -286,23 +299,23 @@ int main(void) {
             current = current->next;
         }
 
+        if(collides(first->ent, last->ent)) {
+            resolve(last->ent, first->ent);
+        }
+
         current = first;
         while(current != NULL) {
             current->falling = true;
             enum edges edge;
             for(int i=0; i<BLOCK_COUNT; i++) {
                 if(collides(blocks[i], current->ent)) {
-                    edge = resolve(blocks[i], current->ent, true);
+                    edge = resolveStatic(blocks[i], current->ent);
                     if(edge == EDGE_BOTTOM) {
                         current->falling = false;
                     }
                 }
             }
             current = current->next;
-        }
-
-        if(collides(first->ent, last->ent)) {
-            resolve(last->ent, first->ent, false);
         }
 
         current = first;
@@ -312,7 +325,7 @@ int main(void) {
             }
             current = current->next;
         }
-        
+
         SDL_RenderClear(rend);
 
         for(int i=0; i<BLOCK_COUNT; i++) {
@@ -320,7 +333,7 @@ int main(void) {
             dest.y = (int) blocks[i]->y;
             dest.w = blocks[i]->w;
             dest.h = blocks[i]->h;
-            SDL_RenderCopy(rend, tex, &spriteRects[SPRITE_DEFAULT], &dest);
+            SDL_RenderCopy(rend, tex, &spriteRects[SPRITE_CRATE], &dest);
         }
 
         current = first;

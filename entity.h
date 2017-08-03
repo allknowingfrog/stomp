@@ -34,6 +34,8 @@ void setMidY(struct Entity *e, float value);
 
 bool collides(struct Entity *a, struct Entity *b);
 
-enum edges resolve(struct Entity *a, struct Entity *b, bool block);
+enum edges resolveStatic(struct Entity *a, struct Entity *b);
+
+enum edges resolve(struct Entity *a, struct Entity *b);
 
 #endif
