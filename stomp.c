@@ -78,7 +78,7 @@ int main(void) {
     }
 
     SDL_Window* win = SDL_CreateWindow(
-        "Stompy",
+        "Stomp",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         WINDOW_WIDTH, WINDOW_HEIGHT,
         0
